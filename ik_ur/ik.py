@@ -69,15 +69,15 @@ class RobotKinematics:
         )
 
     def forward_kinematics(
-        self, joint_angles: list[float]
+        self, joint_angles: np.ndarray
     ) -> tuple[np.ndarray, dict[str, dict[str, np.ndarray]]]:
         """
         Compute the forward kinematics for a 6-DOF robot.
 
         Parameters
         ----------
-        joint_angles : list[float]
-            List of 6 joint angles [theta1, theta2, theta3, theta4, theta5, theta6]
+        joint_angles : np.ndarray
+            Array of 6 joint angles [theta1, theta2, theta3, theta4, theta5, theta6]
 
         Returns
         -------
@@ -165,7 +165,7 @@ class RobotKinematics:
 
     def inverse_kinematics(
         self, end_effector_pose: np.ndarray, verbose: bool = False
-    ) -> list[list[float]]:
+    ) -> np.ndarray:
         """
         Compute the inverse kinematics for a 6-DOF robot,
         skipping solutions that are at or near singularities.
@@ -179,8 +179,8 @@ class RobotKinematics:
 
         Returns
         -------
-        list[list[float]]
-            List of possible joint configurations, each with 6 joint angles
+        np.ndarray
+            Array of possible joint configurations, each with 6 joint angles
         """
         # Extract DH parameters
         a2 = self.dh_params["a2"]
@@ -206,7 +206,7 @@ class RobotKinematics:
         pz = end_effector_pose[2, 3]
 
         # Solutions list
-        solutions: list[list[float]] = []
+        solutions = []
 
         # 1. Calculate joint angle q1 (2 solutions)
         # Calculate terms for q1
@@ -219,7 +219,7 @@ class RobotKinematics:
         if discriminant < -self.eps:
             if verbose:
                 print("Warning: Target position appears to be unreachable for q1 calculation")
-            return []  # No solutions possible
+            return np.array([])  # No solutions possible
 
         discriminant = max(0.0, discriminant)  # Ensure non-negative for sqrt
         sqrt_term = np.sqrt(discriminant)
@@ -354,20 +354,22 @@ class RobotKinematics:
                         continue
 
                     # Normalize angles to [-π, π] range
-                    solution = [
-                        np.mod(q1 + np.pi, 2 * np.pi) - np.pi,
-                        np.mod(q2 + np.pi, 2 * np.pi) - np.pi,
-                        np.mod(q3 + np.pi, 2 * np.pi) - np.pi,
-                        np.mod(q4 + np.pi, 2 * np.pi) - np.pi,
-                        np.mod(q5 + np.pi, 2 * np.pi) - np.pi,
-                        np.mod(q6 + np.pi, 2 * np.pi) - np.pi,
-                    ]
+                    solution = np.array(
+                        [
+                            np.mod(q1 + np.pi, 2 * np.pi) - np.pi,
+                            np.mod(q2 + np.pi, 2 * np.pi) - np.pi,
+                            np.mod(q3 + np.pi, 2 * np.pi) - np.pi,
+                            np.mod(q4 + np.pi, 2 * np.pi) - np.pi,
+                            np.mod(q5 + np.pi, 2 * np.pi) - np.pi,
+                            np.mod(q6 + np.pi, 2 * np.pi) - np.pi,
+                        ]
+                    )
 
                     solutions.append(solution)
 
         # Verify solutions using forward kinematics
         error_threshold = 1e-3
-        verified_solutions: list[list[float]] = []
+        verified_solutions = []
 
         if verbose:
             print(f"\nNumber of candidate solutions found: {len(solutions)}")
@@ -401,16 +403,16 @@ class RobotKinematics:
         if verbose:
             print(f"\nNumber of verified solutions: {len(verified_solutions)}")
 
-        return verified_solutions
+        return np.array(verified_solutions)
 
-    def get_joint_positions(self, joint_angles: list[float]) -> dict[str, np.ndarray]:
+    def get_joint_positions(self, joint_angles: np.ndarray) -> dict[str, np.ndarray]:
         """
         Calculate the positions of all joints given a joint configuration.
 
         Parameters
         ----------
-        joint_angles : list[float]
-            List of 6 joint angles [theta1, theta2, theta3, theta4, theta5, theta6]
+        joint_angles : np.ndarray
+            Array of 6 joint angles [theta1, theta2, theta3, theta4, theta5, theta6]
 
         Returns
         -------
@@ -433,11 +435,9 @@ class RobotKinematics:
         }
 
     @staticmethod
-    def get_best_solution(
-        solutions: list[list[float]], current_config: list[float]
-    ) -> list[float] | None:
+    def get_best_solution(solutions: np.ndarray, current_config: np.ndarray) -> np.ndarray | None:
         """
-        Select the best solution from a list of possible joint configurations.
+        Select the best solution from an array of possible joint configurations.
 
         The best solution is selected based on minimum joint movement from the
         current configuration, or minimum joint values if no current configuration
@@ -445,24 +445,21 @@ class RobotKinematics:
 
         Parameters
         ----------
-        solutions : list[list[float]]
-            List of possible joint configurations
-        current_config : list[float]
-            Current joint configuration, by default None
+        solutions : np.ndarray
+            Array of possible joint configurations
+        current_config : np.ndarray
+            Current joint configuration
 
         Returns
         -------
-        list[float] | None
+        np.ndarray | None
             Best joint configuration, or None if no solutions are provided
         """
-        if not solutions or not current_config:
+        if solutions.size == 0 or current_config is None:
             return None
 
-        # Calculate joint movement for each solution
-        joint_movements = []
-        for solution in solutions:
-            movement = sum(abs(solution[i] - current_config[i]) for i in range(len(solution)))
-            joint_movements.append(movement)
+        # Calculate joint movement for each solution using vectorized operations
+        joint_movements = np.sum(np.abs(solutions - current_config), axis=1)
 
         # Select solution with minimum joint movement
         best_idx = np.argmin(joint_movements)
