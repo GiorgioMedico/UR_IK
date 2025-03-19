@@ -2,7 +2,19 @@
 Robot kinematics module for 6-DOF UR manipulators.
 
 This module provides a class for computing forward and inverse kinematics
-for a UR robot using the Denavit-Hartenberg convention.
+for Universal Robots (UR) manipulators using the Denavit-Hartenberg convention.
+
+The inverse kinematics implementation is based on the analytical approach presented in
+"A General Analytical Algorithm for Collaborative Robot (cobot) with 6 Degree of Freedom (DOF)"
+by Chen et al. (2017 IEEE International Conference on Applied System Innovation).
+Unlike numerical/iterative methods, this analytical approach:
+
+1. Ensures real-time computation with high accuracy
+2. Provides closed-form solutions for all possible configurations
+3. Enables efficient singularity detection and avoidance
+
+The implementation handles edge cases, joint limits, and multiple solution selection
+to provide robust inverse kinematics for practical robot control applications.
 """
 
 import numpy as np
@@ -472,13 +484,15 @@ class RobotKinematics:
         joint_limits: np.ndarray | None = None,
         initial_config: np.ndarray | None = None,
         verbose: bool = False,
-    ) -> np.ndarray:
+    ) -> tuple[np.ndarray, bool, str]:
         """
-        Compute a continuous joint trajectory for a sequence of poses.
+        Compute a continuous joint trajectory for a sequence of poses and detect jumps.
 
         This method computes inverse kinematics for each pose in the sequence and
         ensures that the resulting joint trajectory is continuous by minimizing
         jumps between consecutive configurations. It also enforces joint limits.
+        It checks for jumps in the trajectory and returns a flag and warning message
+        if jumps are detected.
 
         Parameters
         ----------
@@ -498,9 +512,10 @@ class RobotKinematics:
 
         Returns
         -------
-        np.ndarray
-            Joint trajectory as an array of joint angles for each pose,
-            with shape (n_poses, 6)
+        tuple[np.ndarray, bool, str]
+            - Joint trajectory as an array of joint angles for each pose
+            - Boolean indicating if the trajectory is valid (no jumps)
+            - Warning message if jumps were detected, empty string otherwise
         """
         # Convert inputs to numpy arrays
         poses = np.asarray(poses)
@@ -529,11 +544,17 @@ class RobotKinematics:
         # Set default initial configuration if not provided
         initial_config = np.zeros(6) if initial_config is None else np.asarray(initial_config)
 
+        jump_threshold = np.pi / 2
+
         # Initialize trajectory array
         trajectory = np.zeros((len(poses), 6))
 
         # Set initial configuration
         current_config = initial_config.copy()
+
+        # Flag to track if jumps were detected
+        jumps_detected = False
+        jump_warnings = []
 
         # Process each pose
         for i, pose in enumerate(poses):
@@ -570,13 +591,40 @@ class RobotKinematics:
             # Ensure joint continuity
             continuous_solution = self._make_continuous(best_solution, current_config, joint_limits)
 
+            # Check for jumps if not the first pose
+            if i > 0:
+                # Calculate absolute differences between consecutive configurations
+                diffs = np.abs(continuous_solution - trajectory[i - 1])
+
+                # Check if any joint difference exceeds the threshold
+                if np.any(diffs > jump_threshold):
+                    jumps_detected = True
+                    jump_joint_indices = np.where(diffs > jump_threshold)[0]
+                    jump_joints = [f"joint{j + 1}" for j in jump_joint_indices]
+                    jump_sizes = [f"{diffs[j]:.4f} rad" for j in jump_joint_indices]
+
+                    jump_warning = f"Jump detected at pose {i + 1}: {', '.join(jump_joints)} moved by {', '.join(jump_sizes)}"  # noqa: E501
+                    jump_warnings.append(jump_warning)
+
+                    if verbose:
+                        print(jump_warning)
+
             # Store the solution
             trajectory[i] = continuous_solution
 
             # Update current configuration
             current_config = continuous_solution.copy()
 
-        return trajectory
+        # Create warning message
+        warning_message = ""
+        if jumps_detected:
+            warning_message = "WARNING: Jumps detected in joint trajectory:\n" + "\n".join(
+                jump_warnings
+            )
+            if verbose:
+                print(warning_message)
+
+        return trajectory, not jumps_detected, warning_message
 
     @staticmethod
     def _pose_to_transform(pose: np.ndarray) -> np.ndarray:

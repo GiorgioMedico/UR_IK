@@ -1,8 +1,8 @@
 # IK_UR
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
-[![Build](https://github.com/franneck94/Python-Project-Template/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/franneck94/Python-Project-Template/actions/workflows/test.yml)
-[![codecov](https://codecov.io/gh/franneck94/Python-Project-Template-Eng/branch/master/graph/badge.svg)](https://codecov.io/gh/franneck94/Python-Project-Template-Eng)
+[![ci-test](https://github.com/GiorgioMedico/UR_IK/actions/workflows/test.yml/badge.svg)](https://github.com/GiorgioMedico/UR_IK/actions/workflows/test.yml)
+[![pre-commit](https://github.com/GiorgioMedico/UR_IK/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/GiorgioMedico/UR_IK/actions/workflows/pre-commit.yml)
 
 ## Universal Robots Inverse Kinematics Library
 
