@@ -466,59 +466,6 @@ class RobotKinematics:
         best_idx = np.argmin(joint_movements)
         return solutions[best_idx]
 
-    @staticmethod
-    def _convert_range(
-        value: float | np.ndarray, old_min: float, old_max: float, new_min: float, new_max: float
-    ) -> float | np.ndarray:
-        """
-        Convert a value or array of values from a source range to a target range.
-
-        Parameters
-        ----------
-        value : float or np.ndarray
-            Value(s) in the original range to convert
-        old_min : float
-            The minimum value of the original range
-        old_max : float
-            The maximum value of the original range
-        new_min : float
-            The minimum value of the target range
-        new_max : float
-            The maximum value of the target range
-
-        Returns
-        -------
-        float or np.ndarray
-            The converted value(s) in the new range
-
-        Raises
-        ------
-        ValueError
-            If any value is not in the original range [old_min, old_max]
-        """
-        # Convert input to NumPy array if it isn't already
-        value_array = np.asarray(value)
-        # Verify that all values are within the original range
-        if np.any(value_array < old_min) or np.any(value_array > old_max):
-            raise ValueError(f"All values must be within the range [{old_min}, {old_max}]")
-        # Calculate the width of the original range
-        old_width = old_max - old_min
-        # Handle the case where the original range is a single point
-        if old_width == 0:
-            if np.isscalar(value):
-                return (new_min + new_max) / 2
-            return np.ones_like(value_array) * (new_min + new_max) / 2
-        # Calculate the width of the new range
-        new_width = new_max - new_min
-        # Normalize the values to the range [0, 1]
-        normalized_value = (value_array - old_min) / old_width
-        # Map the normalized value to the new range
-        result = new_min + (normalized_value * new_width)
-        # If the input was a scalar, return a scalar
-        if np.isscalar(value):
-            return result.item()
-        return result
-
     def compute_joint_trajectory(
         self,
         poses: np.ndarray,
@@ -607,6 +554,9 @@ class RobotKinematics:
                 continue
 
             # Get the best solution (closest to current configuration)
+            if verbose:
+                print("Shape of IK solutions : ", solutions.shape)
+
             best_solution = self.get_best_solution(solutions, current_config)
 
             if best_solution is None:
@@ -659,11 +609,12 @@ class RobotKinematics:
 
         return transform
 
+    @staticmethod
     def _make_continuous(
-        self, current_solution: np.ndarray, previous_solution: np.ndarray, joint_limits: np.ndarray
+        current_solution: np.ndarray, previous_solution: np.ndarray, joint_limits: np.ndarray
     ) -> np.ndarray:
         """
-        Make joint angles continuous by shifting from [-π, π] range by multiples of 2π
+        Make joint angles continuous by shifting values by multiples of 2π
         when there are jumps, ensuring they fall within joint limits.
 
         Parameters
@@ -672,44 +623,50 @@ class RobotKinematics:
             Current joint angles [j1, j2, j3, j4, j5, j6]
         previous_solution : np.ndarray
             Previous joint angles [j1, j2, j3, j4, j5, j6]
-        joint_limits : np.ndarray, optional
-            Joint limits as [min1, max1, min2, max2, min3, max3, min4, max4, min5, max5,
-                            min6, max6]
+        joint_limits : np.ndarray
+            Joint limits as [min1, max1, min2, max2, min3, max3, min4, max4, min5, max5, min6, max6]
 
         Returns
         -------
         np.ndarray
             Continuous joint angles [j1, j2, j3, j4, j5, j6] within the specified joint limits
         """
-
         continuous_solution = current_solution.copy()
 
         for j in range(6):
-            # joint limits from IK
-            min_limit = -np.pi
-            max_limit = np.pi
+            # Get the joint limits for this joint
+            min_limit_joint = joint_limits[2 * j]
+            max_limit_joint = joint_limits[2 * j + 1]
 
-            # Check for a jump between previous and current
+            # Calculate the difference between current and previous solution
             diff = continuous_solution[j] - previous_solution[j]
 
-            if diff > np.pi:
-                new_min = min_limit + np.pi
-                new_max = max_limit + np.pi
-
-            elif diff < -np.pi:
-
-                new_min = min_limit - np.pi
-                new_max = max_limit - np.pi
-
-            else:
+            # If difference is small, no need to adjust
+            if abs(diff) <= np.pi:
                 continue
 
-            if joint_limits[2 * j] <= new_min and joint_limits[2 * j + 1] >= new_max:
+            # Calculate number of 2π rotations needed to minimize the jump
+            num_rotations = round(diff / (2 * np.pi))
 
-                continuous_solution[j] = self._convert_range(
-                    continuous_solution[j], min_limit, max_limit, new_min, new_max
-                )
-            else:
+            if num_rotations == 0:
                 continue
+
+            # Calculate the adjusted value
+            adjusted_value = continuous_solution[j] - num_rotations * 2 * np.pi
+
+            # Check if the adjusted value is within joint limits
+            if min_limit_joint <= adjusted_value <= max_limit_joint:
+                continuous_solution[j] = adjusted_value
+            else:
+                # Try other adjustment directions if needed
+                for offset in [-2, -1, 1, 2]:
+                    if offset == -num_rotations:
+                        continue  # Skip the already tried adjustment
+
+                    test_value = continuous_solution[j] - offset * 2 * np.pi
+                    if min_limit_joint <= test_value <= max_limit_joint:
+
+                        continuous_solution[j] = test_value
+                        break
 
         return continuous_solution
