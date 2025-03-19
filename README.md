@@ -9,11 +9,12 @@
 IK_UR is a high-performance Python library implementing analytical forward and inverse kinematics for Universal Robots (UR) manipulators. This package provides precise, real-time kinematic calculations for the UR3e, UR5e, UR10e, and UR16e robot models using the Denavit-Hartenberg convention.
 
 Unlike numerical/iterative methods, this analytical approach:
+
 1. Ensures real-time computation with high accuracy
 2. Provides closed-form solutions for all possible configurations
 3. Enables efficient singularity detection and avoidance
 
-The implementation handles edge cases, joint limits, and multiple solution selection to provide robust inverse kinematics for practical robot control applications.
+The implementation handles edge cases, joint limits, and multiple solution selection to provide robust inverse kinematics for practical robot control applications. While pre-configured for Universal Robots models, the library supports custom robot configurations through user-defined Denavit-Hartenberg parameters, making it adaptable to other 6-DOF serial manipulators with similar kinematic structures.
 
 ## Features
 
@@ -61,6 +62,30 @@ best_solution = robot.get_best_solution(solutions, joint_angles)
 joint_positions = robot.get_joint_positions(joint_angles)
 ```
 
+### Using Custom DH Parameters
+
+```python
+import numpy as np
+from ik_ur.ik import RobotKinematics
+
+# Define custom DH parameters for a 6-DOF robot
+custom_dh_params = {
+    "a2": -0.5,    # Link length (m)
+    "a3": -0.4,    # Link length (m)
+    "d1": 0.1,     # Link offset (m)
+    "d4": 0.1,     # Link offset (m)
+    "d5": 0.1,     # Link offset (m)
+    "d6": 0.08,    # Link offset (m)
+}
+
+# Initialize robot with custom parameters
+robot = RobotKinematics(custom_dh_params)
+
+# Use the same API as with standard robot models
+joint_angles = np.array([0, -np.pi/4, np.pi/2, 0, np.pi/3, 0])
+end_effector_pose, transforms = robot.forward_kinematics(joint_angles)
+```
+
 ### Trajectory Generation
 
 ```python
@@ -102,9 +127,10 @@ The library provides accurate Denavit-Hartenberg parameters for the following Un
 
 ## Implementation Details
 
-The inverse kinematics implementation is based on the analytical approach presented in "A General Analytical Algorithm for Collaborative Robot (cobot) with 6 Degree of Freedom (DOF)" by Chen et al. (2017 IEEE International Conference on Applied System Innovation).
+The inverse kinematics implementation is based on the analytical approach presented in "A General Analytical Algorithm for Collaborative Robot (cobot) with 6 Degree of Freedom (DOF)" by Chen et al. (2017 IEEE International Conference on Applied System Innovation). This algorithm provides a general closed-form solution for 6-DOF robots with the specific joint configuration used in Universal Robots.
 
 Key features of the implementation:
+
 - **Analytical Solutions**: Provides closed-form solutions rather than iterative approximations
 - **Singularity Handling**: Robust detection and handling of singularity configurations
 - **Multiple Solutions**: Returns all valid solutions, allowing for optimal path selection
@@ -156,6 +182,15 @@ pre-commit run --all-files
 If you use this library in your research, please cite:
 
 ```
+@inproceedings{chen2017general,
+  title={A General Analytical Algorithm for Collaborative Robot (cobot) with 6 Degree of Freedom (DOF)},
+  author={Chen, Saixuan and Luo, Minzhou and Abdelaziz, Omar and Jiang, Guanwu},
+  booktitle={Proceedings of the 2017 IEEE International Conference on Applied System Innovation},
+  pages={698--701},
+  year={2017},
+  organization={IEEE}
+}
+
 @software{IK_UR,
   author = {Medico, Giorgio},
   title = {IK_UR: Universal Robots Inverse Kinematics Library},
