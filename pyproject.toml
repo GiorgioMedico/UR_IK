@@ -40,7 +40,7 @@ all = ["ik_ur[test,doc,dev]"]
 
 [tool.setuptools]
 platforms = ["unix", "linux", "osx", "cygwin", "win32"]
-packages = ["ik_ur"]                            # optional
+packages = ["ik_ur"]
 
 [tool.setuptools.dynamic]
 version = { attr = "ik_ur.__version__" }
