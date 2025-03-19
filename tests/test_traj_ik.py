@@ -1,9 +1,11 @@
+from typing import List
+
 import numpy as np
-import pytest
 from scipy.spatial.transform import Rotation
+
+import pytest
 from ik_ur.dh_params import get_robot_params
 from ik_ur.ik import RobotKinematics
-from typing import List
 
 
 @pytest.fixture
@@ -32,8 +34,8 @@ def test_single_joint_rotation_trajectory(ur5e_robot: RobotKinematics) -> None:
     num_steps: int = 36  # 10-degree increments
 
     # Initial configuration - we'll use joint 4 for our test
-    initial_config: np.ndarray = np.array([0.0, -np.pi/4, np.pi/2, 0.0, np.pi/3, 0.0])
-    final_config: np.ndarray = np.array([0.0, -np.pi/4, np.pi/2, 2*np.pi, np.pi/3, 0.0])
+    initial_config: np.ndarray = np.array([0.0, -np.pi / 4, np.pi / 2, 0.0, np.pi / 3, 0.0])
+    final_config: np.ndarray = np.array([0.0, -np.pi / 4, np.pi / 2, 2 * np.pi, np.pi / 3, 0.0])
 
     # Create intermediate joint configurations by linearly interpolating joint 4
     joint_configs: List[np.ndarray] = []
@@ -63,9 +65,7 @@ def test_single_joint_rotation_trajectory(ur5e_robot: RobotKinematics) -> None:
 
     # Compute joint trajectory from poses using inverse kinematics
     computed_trajectory: np.ndarray = ur5e_robot.compute_joint_trajectory(
-        poses_array,
-        initial_config=initial_config,
-        verbose=False
+        poses_array, initial_config=initial_config, verbose=False
     )
 
     # Check that computed trajectory matches original joint configurations
@@ -85,8 +85,8 @@ def test_single_joint_rotation_negative_trajectory(ur5e_robot: RobotKinematics) 
     num_steps: int = 36  # 10-degree increments
 
     # Initial configuration - we'll use joint 4 for our test
-    initial_config: np.ndarray = np.array([0.0, -np.pi/4, -np.pi/4, 0.0, np.pi/3, 0.0])
-    final_config: np.ndarray = np.array([0.0, -np.pi/4, -np.pi/4, -2*np.pi, np.pi/3, 0.0])
+    initial_config: np.ndarray = np.array([0.0, -np.pi / 4, -np.pi / 4, 0.0, np.pi / 3, 0.0])
+    final_config: np.ndarray = np.array([0.0, -np.pi / 4, -np.pi / 4, -2 * np.pi, np.pi / 3, 0.0])
 
     # Create intermediate joint configurations by linearly interpolating joint 4
     joint_configs: List[np.ndarray] = []
@@ -116,9 +116,7 @@ def test_single_joint_rotation_negative_trajectory(ur5e_robot: RobotKinematics) 
 
     # Compute joint trajectory from poses using inverse kinematics
     computed_trajectory: np.ndarray = ur5e_robot.compute_joint_trajectory(
-        poses_array,
-        initial_config=initial_config,
-        verbose=False
+        poses_array, initial_config=initial_config, verbose=False
     )
 
     # Check that computed trajectory matches original joint configurations
