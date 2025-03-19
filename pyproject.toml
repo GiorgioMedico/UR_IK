@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "IK_UR"
 authors = [{ name = "Giorgio Medico", email = "giorgio.medico11@gmail.com" }]
-description = "This is a lib on interpolations in python."
+description = "A comprehensive Python library for computing forward and inverse kinematics for Universal Robots (UR) manipulators."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
@@ -21,8 +21,9 @@ classifiers = [
     "Operating System :: MacOS",
 ]
 dependencies = [
-    "numpy>=1.21.6; python_version<'3.11'",
-    "numpy>=1.23.2; python_version>='3.11'",
+    "numpy>=2.0.0",
+    "scipy>=1.15.2",
+    "matplotlib>=3.10.1",
 ]
 dynamic = ["version"]
 
