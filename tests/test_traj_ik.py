@@ -64,7 +64,7 @@ def test_single_joint_rotation_trajectory(ur5e_robot: RobotKinematics) -> None:
     poses_array: np.ndarray = np.array(poses)
 
     # Compute joint trajectory from poses using inverse kinematics
-    computed_trajectory: np.ndarray = ur5e_robot.compute_joint_trajectory(
+    computed_trajectory: np.ndarray, _, _ = ur5e_robot.compute_joint_trajectory(
         poses_array, initial_config=initial_config, verbose=False
     )
 
@@ -115,7 +115,7 @@ def test_single_joint_rotation_negative_trajectory(ur5e_robot: RobotKinematics) 
     poses_array: np.ndarray = np.array(poses)
 
     # Compute joint trajectory from poses using inverse kinematics
-    computed_trajectory: np.ndarray = ur5e_robot.compute_joint_trajectory(
+    computed_trajectory: np.ndarray, _, _ = ur5e_robot.compute_joint_trajectory(
         poses_array, initial_config=initial_config, verbose=False
     )
 
