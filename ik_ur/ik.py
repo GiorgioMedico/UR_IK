@@ -6,6 +6,7 @@ for a UR robot using the Denavit-Hartenberg convention.
 """
 
 import numpy as np
+from scipy.spatial.transform import Rotation
 
 
 class RobotKinematics:
@@ -464,3 +465,251 @@ class RobotKinematics:
         # Select solution with minimum joint movement
         best_idx = np.argmin(joint_movements)
         return solutions[best_idx]
+
+    @staticmethod
+    def _convert_range(
+        value: float | np.ndarray, old_min: float, old_max: float, new_min: float, new_max: float
+    ) -> float | np.ndarray:
+        """
+        Convert a value or array of values from a source range to a target range.
+
+        Parameters
+        ----------
+        value : float or np.ndarray
+            Value(s) in the original range to convert
+        old_min : float
+            The minimum value of the original range
+        old_max : float
+            The maximum value of the original range
+        new_min : float
+            The minimum value of the target range
+        new_max : float
+            The maximum value of the target range
+
+        Returns
+        -------
+        float or np.ndarray
+            The converted value(s) in the new range
+
+        Raises
+        ------
+        ValueError
+            If any value is not in the original range [old_min, old_max]
+        """
+        # Convert input to NumPy array if it isn't already
+        value_array = np.asarray(value)
+        # Verify that all values are within the original range
+        if np.any(value_array < old_min) or np.any(value_array > old_max):
+            raise ValueError(f"All values must be within the range [{old_min}, {old_max}]")
+        # Calculate the width of the original range
+        old_width = old_max - old_min
+        # Handle the case where the original range is a single point
+        if old_width == 0:
+            if np.isscalar(value):
+                return (new_min + new_max) / 2
+            return np.ones_like(value_array) * (new_min + new_max) / 2
+        # Calculate the width of the new range
+        new_width = new_max - new_min
+        # Normalize the values to the range [0, 1]
+        normalized_value = (value_array - old_min) / old_width
+        # Map the normalized value to the new range
+        result = new_min + (normalized_value * new_width)
+        # If the input was a scalar, return a scalar
+        if np.isscalar(value):
+            return result.item()
+        return result
+
+    def compute_joint_trajectory(
+        self,
+        poses: np.ndarray,
+        joint_limits: np.ndarray | None = None,
+        initial_config: np.ndarray | None = None,
+        verbose: bool = False,
+    ) -> np.ndarray:
+        """
+        Compute a continuous joint trajectory for a sequence of poses.
+
+        This method computes inverse kinematics for each pose in the sequence and
+        ensures that the resulting joint trajectory is continuous by minimizing
+        jumps between consecutive configurations. It also enforces joint limits.
+
+        Parameters
+        ----------
+        poses : np.ndarray
+            Array of poses, each as [x, y, z, qx, qy, qz, qw] where:
+            - x, y, z: Position coordinates
+            - qx, qy, qz, qw: Quaternion orientation
+        joint_limits : np.ndarray | None, optional
+            Joint limits as [min1, max1, min2, max2, min3, max3, min4, max4, min5, max5,
+                            min6, max6].
+            If None, defaults to [-2π, 2π] for joints 1-6.
+        initial_config : np.ndarray | None, optional
+            Initial joint configuration as [j1, j2, j3, j4, j5, j6].
+            If None, defaults to [0, 0, 0, 0, 0, 0].
+        verbose : bool, optional
+            If True, print detailed information, by default False
+
+        Returns
+        -------
+        np.ndarray
+            Joint trajectory as an array of joint angles for each pose,
+            with shape (n_poses, 6)
+        """
+        # Convert inputs to numpy arrays
+        poses = np.asarray(poses)
+
+        # Set default joint limits if not provided
+        if joint_limits is None:
+            joint_limits = np.array(
+                [
+                    -2 * np.pi,
+                    2 * np.pi,  # Joint 1
+                    -2 * np.pi,
+                    2 * np.pi,  # Joint 2
+                    -2 * np.pi,
+                    2 * np.pi,  # Joint 3
+                    -2 * np.pi,
+                    2 * np.pi,  # Joint 4
+                    -2 * np.pi,
+                    2 * np.pi,  # Joint 5
+                    -2 * np.pi,
+                    2 * np.pi,  # Joint 6
+                ]
+            )
+        else:
+            joint_limits = np.asarray(joint_limits)
+
+        # Set default initial configuration if not provided
+        initial_config = np.zeros(6) if initial_config is None else np.asarray(initial_config)
+
+        # Initialize trajectory array
+        trajectory = np.zeros((len(poses), 6))
+
+        # Set initial configuration
+        current_config = initial_config.copy()
+
+        # Process each pose
+        for i, pose in enumerate(poses):
+            if verbose:
+                print(f"Processing pose {i + 1}/{len(poses)}")
+
+            # Convert pose to transformation matrix
+            transform = self._pose_to_transform(pose)
+
+            # Compute inverse kinematics
+            solutions = self.inverse_kinematics(transform, verbose=verbose)
+
+            # If no solutions found, use the last valid configuration
+            if solutions.size == 0:
+                if verbose:
+                    print(f"No solutions found for pose {i + 1}. Using last valid configuration.")
+                trajectory[i] = current_config
+                continue
+
+            # Get the best solution (closest to current configuration)
+            best_solution = self.get_best_solution(solutions, current_config)
+
+            if best_solution is None:
+                if verbose:
+                    print(
+                        f"Best solution not found for pose {i + 1}. Using last valid configuration."
+                    )
+                trajectory[i] = current_config
+                continue
+
+            # Ensure joint continuity
+            continuous_solution = self._make_continuous(best_solution, current_config, joint_limits)
+
+            # Store the solution
+            trajectory[i] = continuous_solution
+
+            # Update current configuration
+            current_config = continuous_solution.copy()
+
+        return trajectory
+
+    @staticmethod
+    def _pose_to_transform(pose: np.ndarray) -> np.ndarray:
+        """
+        Convert a pose [x, y, z, qx, qy, qz, qw] to a 4x4 homogeneous transformation matrix.
+
+        Parameters
+        ----------
+        pose : np.ndarray
+            Pose as [x, y, z, qx, qy, qz, qw] where:
+            - x, y, z: Position coordinates
+            - qx, qy, qz, qw: Quaternion orientation
+
+        Returns
+        -------
+        np.ndarray
+            4x4 homogeneous transformation matrix
+        """
+
+        x, y, z, qx, qy, qz, qw = pose
+
+        # Create rotation matrix from quaternion using scipy
+        rotation = Rotation.from_quat([qx, qy, qz, qw])
+        rotation_matrix = rotation.as_matrix()
+
+        # Create homogeneous transformation matrix
+        transform = np.eye(4)
+        transform[0:3, 0:3] = rotation_matrix
+        transform[0:3, 3] = [x, y, z]
+
+        return transform
+
+    def _make_continuous(
+        self, current_solution: np.ndarray, previous_solution: np.ndarray, joint_limits: np.ndarray
+    ) -> np.ndarray:
+        """
+        Make joint angles continuous by shifting from [-π, π] range by multiples of 2π
+        when there are jumps, ensuring they fall within joint limits.
+
+        Parameters
+        ----------
+        current_solution : np.ndarray
+            Current joint angles [j1, j2, j3, j4, j5, j6]
+        previous_solution : np.ndarray
+            Previous joint angles [j1, j2, j3, j4, j5, j6]
+        joint_limits : np.ndarray, optional
+            Joint limits as [min1, max1, min2, max2, min3, max3, min4, max4, min5, max5,
+                            min6, max6]
+
+        Returns
+        -------
+        np.ndarray
+            Continuous joint angles [j1, j2, j3, j4, j5, j6] within the specified joint limits
+        """
+
+        continuous_solution = current_solution.copy()
+
+        for j in range(6):
+            # joint limits from IK
+            min_limit = -np.pi
+            max_limit = np.pi
+
+            # Check for a jump between previous and current
+            diff = continuous_solution[j] - previous_solution[j]
+
+            if diff > np.pi:
+                new_min = min_limit + np.pi
+                new_max = max_limit + np.pi
+
+            elif diff < -np.pi:
+
+                new_min = min_limit - np.pi
+                new_max = max_limit - np.pi
+
+            else:
+                continue
+
+            if joint_limits[2 * j] <= new_min and joint_limits[2 * j + 1] >= new_max:
+
+                continuous_solution[j] = self._convert_range(
+                    continuous_solution[j], min_limit, max_limit, new_min, new_max
+                )
+            else:
+                continue
+
+        return continuous_solution

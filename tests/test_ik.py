@@ -234,7 +234,7 @@ def test_get_best_solution():
 
     # Test with None current configuration
     assert (
-        RobotKinematics.get_best_solution(solutions, None) is None # type: ignore
+        RobotKinematics.get_best_solution(solutions, None) is None
     ), "Should return None if current config is None"
 
 
@@ -281,8 +281,8 @@ def test_random_configurations(ur5e_robot):
     """Test with multiple random configurations."""
     np.random.seed(42)  # For reproducibility
 
-    # Test 1000 random configurations
-    for _ in range(1000):
+    # Test 10000 random configurations
+    for _ in range(10000):
         # Generate random joint angles
         joint_angles = np.random.uniform(-np.pi, np.pi, 6)
 
